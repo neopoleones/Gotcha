@@ -5,4 +5,11 @@ bind_port = 8080
 [logger_configuration]
     show_caller   = true
     level         = "debug"
-    output_format = "terminal-colored"
+    output_format = "terminal-colored" # terminal, json
+
+[database_configuration]
+    host = "127.0.0.1"
+    port = 5432
+    username = "postgres"
+    database = "gotcha"
+    ssl_mode = "disable"

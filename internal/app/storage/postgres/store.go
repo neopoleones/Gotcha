@@ -25,3 +25,9 @@ func (store *Store) User() storage.UserRepository {
 	}
 	return store.userRepository
 }
+
+func (store *Store) Close() {
+	// TODO: Add hooks
+	// ...
+	_ = store.db.Close()
+}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"Gotcha/internal/app/logging"
+	"Gotcha/internal/app/storage"
 	"github.com/gorilla/mux"
 )
 
@@ -15,28 +16,30 @@ var (
 )
 
 type apiHandle struct {
-	path string
+	path    string
 	methods []string
 }
 
-func newApiHandle(path string, methods ...string) apiHandle{
+func newApiHandle(path string, methods ...string) apiHandle {
 	return apiHandle{path: apiRootPath + path, methods: methods}
 }
 
 // GotchaAPIServer is a container of server-needed interfaces like logging, cookie store and router
 type GotchaAPIServer struct {
-	router *mux.Router
-	logger logging.GotchaLogger
-	cfg *GotchaConfiguration
+	router  *mux.Router
+	logger  logging.GotchaLogger
+	cfg     *GotchaConfiguration
+	storage storage.Storage
 	// storage store.storage
 }
 
 // newAPIServer returns an instance of GotchaAPIServer with registered handlers and middlewares
-func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration) *GotchaAPIServer {
+func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage storage.Storage) *GotchaAPIServer {
 	server := GotchaAPIServer{
-		logger: logger,
-		router: mux.NewRouter(),
-		cfg: cfg,
+		logger:  logger,
+		router:  mux.NewRouter(),
+		cfg:     cfg,
+		storage: storage,
 	}
 
 	// Register handlers & middlewares
@@ -49,7 +52,7 @@ func (srv *GotchaAPIServer) registerHandlers() {
 	srv.router.HandleFunc(apiHeartbeat.path, srv.heartbeatAPIHandler()).Methods(apiHeartbeat.methods...)
 }
 
-func (srv *GotchaAPIServer) error(w http.ResponseWriter, code int, err error){
+func (srv *GotchaAPIServer) error(w http.ResponseWriter, code int, err error) {
 	srv.respond(w, code, map[string]string{"error": err.Error()})
 }
 
