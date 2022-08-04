@@ -7,4 +7,7 @@ rbuild:
 clean:
 	rm gotcha-app
 
+tests:
+	go test -race -timeout 30s ./...
+
 DEFAULT_GOAL := rbuid
