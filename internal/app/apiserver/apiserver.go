@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	apiRootPath  = "/api"
-	apiNotesPath = apiRootPath + "/knd"
+	ApiRootPath  = "/api"
+	ApiNotesPath = ApiRootPath + "/knd"
 
-	apiHeartbeat = newApiHandle("/heartbeat", true, "GET", "OPTIONS")
-	apiSignup    = newApiHandle("/authority/signup", true, "POST", "OPTIONS")
-	apiAuthorize = newApiHandle("/authority/signin", true, "POST", "OPTIONS")
+	ApiHeartbeat = newApiHandle("/heartbeat", true, "GET", "OPTIONS")
+	ApiSignup    = newApiHandle("/authority/signup", true, "POST", "OPTIONS")
+	ApiAuthorize = newApiHandle("/authority/signin", true, "POST", "OPTIONS")
 
-	apiGetBoards = newApiHandle("/boards", false, "GET", "OPTIONS")
+	ApiGetBoards = newApiHandle("/boards", false, "GET", "OPTIONS")
 )
 
 type serverState int
@@ -28,22 +28,22 @@ const (
 	stateMangled
 )
 
-type apiHandle struct {
-	path    string
-	methods []string
+type ApiHandle struct {
+	Path    string
+	Methods []string
 }
 
-func newApiHandle(path string, addBase bool, methods ...string) apiHandle {
+func newApiHandle(path string, addBase bool, methods ...string) ApiHandle {
 	if addBase {
-		path = apiRootPath + path
+		path = ApiRootPath + path
 	}
-	return apiHandle{path: path, methods: methods}
+	return ApiHandle{Path: path, Methods: methods}
 }
 
-// GotchaAPIServer is a container of server-needed interfaces like logging, cookie store and router
+// GotchaAPIServer is a container of server-needed interfaces like logging, cookie store and Router
 type GotchaAPIServer struct {
 	state       serverState
-	router      *mux.Router
+	Router      *mux.Router
 	logger      logging.GotchaLogger
 	cfg         *GotchaConfiguration
 	storage     storage.Storage
@@ -51,11 +51,11 @@ type GotchaAPIServer struct {
 	// storage store.storage
 }
 
-// newAPIServer returns an instance of GotchaAPIServer with registered handlers and middlewares
-func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage storage.Storage, cookieStore sessions.Store) *GotchaAPIServer {
+// NewAPIServer returns an instance of GotchaAPIServer with registered handlers and middlewares
+func NewAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage storage.Storage, cookieStore sessions.Store) *GotchaAPIServer {
 	server := GotchaAPIServer{
 		logger:      logger,
-		router:      mux.NewRouter(),
+		Router:      mux.NewRouter(),
 		cfg:         cfg,
 		storage:     storage,
 		state:       stateRunning,
@@ -70,14 +70,14 @@ func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage
 
 func (srv *GotchaAPIServer) registerHandlers() {
 	// Authorization not required
-	srv.router.HandleFunc(apiHeartbeat.path, srv.heartbeatAPIHandler()).Methods(apiHeartbeat.methods...)
-	srv.router.HandleFunc(apiSignup.path, srv.signupHandler()).Methods(apiSignup.methods...)
-	srv.router.HandleFunc(apiAuthorize.path, srv.signinHandler()).Methods(apiAuthorize.methods...)
+	srv.Router.HandleFunc(ApiHeartbeat.Path, srv.heartbeatAPIHandler()).Methods(ApiHeartbeat.Methods...)
+	srv.Router.HandleFunc(ApiSignup.Path, srv.signupHandler()).Methods(ApiSignup.Methods...)
+	srv.Router.HandleFunc(ApiAuthorize.Path, srv.signinHandler()).Methods(ApiAuthorize.Methods...)
 
 	// Authorization middleware enabled`
-	noteSubRouter := srv.router.PathPrefix(apiNotesPath).Subrouter()
+	noteSubRouter := srv.Router.PathPrefix(ApiNotesPath).Subrouter()
 	noteSubRouter.Use(srv.authorizationMiddleware)
-	noteSubRouter.HandleFunc(apiGetBoards.path, srv.getBoardsHandler()).Methods(apiGetBoards.methods...)
+	noteSubRouter.HandleFunc(ApiGetBoards.Path, srv.getBoardsHandler()).Methods(ApiGetBoards.Methods...)
 }
 
 func (srv *GotchaAPIServer) error(w http.ResponseWriter, code int, err error) {

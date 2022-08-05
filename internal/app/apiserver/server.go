@@ -29,12 +29,12 @@ func Start(cfg *GotchaConfiguration, logger logging.GotchaLogger) error {
 	cookieStore := sessions.NewCookieStore([]byte(cfg.SessionKey))
 
 	// Create server
-	srv := newAPIServer(logger, cfg, storage, cookieStore)
+	srv := NewAPIServer(logger, cfg, storage, cookieStore)
 
 	// Then fire it!
 	bindAddress := fmt.Sprintf("%s:%d", cfg.BindIP, cfg.BindPort)
 	logger.Printf("Serving on %s", bindAddress)
-	return http.ListenAndServe(bindAddress, srv.router)
+	return http.ListenAndServe(bindAddress, srv.Router)
 }
 
 func OpenDB(conStr string) (*sql.DB, error) {

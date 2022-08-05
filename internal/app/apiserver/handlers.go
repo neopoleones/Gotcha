@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	statusServerOK      = "working"
-	statusServerMangled = "mangled"
+	StatusServerOK      = "working"
+	StatusServerMangled = "mangled"
 
 	sessionName = "gotcha_auth"
 )
@@ -25,22 +25,22 @@ var (
 	errMixedIncorrect = errors.New("incorrect username or password") // hides out that user not exists
 )
 
+type ServerStatus struct {
+	AppName string        `json:"app_name"`
+	Status  string        `json:"status"`
+	Uptime  time.Duration `json:"uptime"`
+}
+
 func (srv *GotchaAPIServer) heartbeatAPIHandler() http.HandlerFunc {
 	handlerRegisteredTime := time.Now()
-
-	type ServerStatus struct {
-		AppName string        `json:"app_name"`
-		Status  string        `json:"status"`
-		Uptime  time.Duration `json:"uptime"`
-	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		state := "responds"
 		switch srv.state {
 		case stateRunning:
-			state = statusServerOK
+			state = StatusServerOK
 		case stateMangled:
-			state = statusServerMangled
+			state = StatusServerMangled
 		}
 
 		serverStatus := ServerStatus{

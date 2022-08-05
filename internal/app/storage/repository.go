@@ -1,14 +1,8 @@
 package storage
 
 import (
-	"errors"
-
 	"Gotcha/internal/app/model"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrNotFound = errors.New("record not found")
 )
 
 type UserRepository interface {
