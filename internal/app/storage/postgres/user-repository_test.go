@@ -23,7 +23,7 @@ func TestUserRepository_NewUser(t *testing.T) {
 	assert.Error(t, repository.SaveUser(testUser), "Duplicate user was created successfully!")
 }
 
-func TestUserRepository_FindUserByEmail(t *testing.T) {
+func TestUserRepository_FindUserBySobriquet(t *testing.T) {
 	db, sanitize := postgres.TestDB(t, databaseConnectionString)
 	repository := postgres.NewStore(db).User()
 	defer sanitize("Users")
@@ -40,4 +40,21 @@ func TestUserRepository_FindUserByEmail(t *testing.T) {
 
 	_, err = repository.FindUserBySobriquet("qwerty123")
 	assert.Error(t, err, "Repository returned user of unknown nickname")
+}
+
+func TestUserRepository_FindUserByID(t *testing.T) {
+	db, sanitize := postgres.TestDB(t, databaseConnectionString)
+	repository := postgres.NewStore(db).User()
+	defer sanitize("Users")
+
+	testUser := model.TestUser(t)
+	_ = repository.SaveUser(testUser) // Suppose that TestUserRepository_NewUser was passed
+
+	foundUser, err := repository.FindUserByID(testUser.ID)
+	assert.NoError(t, err, "Failed to get user by id")
+	testUser.ClearSensitive()
+	assert.Equal(t, testUser, foundUser)
+
+	_, err = repository.FindUserByID(uuid.Nil)
+	assert.Error(t, err, "Repository returned user for nil UUID")
 }

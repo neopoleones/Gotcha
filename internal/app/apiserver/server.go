@@ -7,6 +7,7 @@ import (
 
 	"Gotcha/internal/app/logging"
 	"Gotcha/internal/app/storage/postgres"
+	"github.com/gorilla/sessions"
 )
 
 // Start is a core function of api-server module. It opens a database connection
@@ -17,14 +18,20 @@ func Start(cfg *GotchaConfiguration, logger logging.GotchaLogger) error {
 	if err != nil {
 		return err
 	}
+
 	// Get storage
 	storage := postgres.NewStore(db)
 	logger.Println("Initialized storage")
 	defer storage.Close()
 
+	// And cookie store
+	// TODO: try out redis: https://github.com/boj/redistore
+	cookieStore := sessions.NewCookieStore([]byte(cfg.SessionKey))
+
 	// Create server
-	srv := newAPIServer(logger, cfg, storage)
-	// Then start the API server
+	srv := newAPIServer(logger, cfg, storage, cookieStore)
+
+	// Then fire it!
 	bindAddress := fmt.Sprintf("%s:%d", cfg.BindIP, cfg.BindPort)
 	logger.Printf("Serving on %s", bindAddress)
 	return http.ListenAndServe(bindAddress, srv.router)

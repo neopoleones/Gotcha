@@ -5,6 +5,7 @@ import (
 
 	"Gotcha/internal/app/model"
 	"Gotcha/internal/app/storage"
+	"github.com/google/uuid"
 )
 
 const (
@@ -14,6 +15,9 @@ const (
 	`
 	findUserByQuery = `
 		SELECT id, username, email, hash, created_at FROM "Users" where username = $1 or email = $1;
+	`
+	findUserByIDQuery = `
+		SELECT id, username, email, hash, created_at FROM "Users" where id = $1;
 	`
 )
 
@@ -47,4 +51,16 @@ func (repo *UserRepository) SaveUser(user *model.User) error {
 
 	resultRow := repo.store.db.QueryRow(saveUserQuery, user.Username, user.Email, user.Hash)
 	return resultRow.Scan(&user.ID, &user.CreatedAt)
+}
+
+func (repo *UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) {
+	u := model.User{}
+	userRow := repo.store.db.QueryRow(findUserByIDQuery, userID)
+	if err := userRow.Scan(&u.ID, &u.Username, &u.Email, &u.Hash, &u.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, storage.ErrNotFound
+		}
+		return nil, err
+	}
+	return &u, nil
 }

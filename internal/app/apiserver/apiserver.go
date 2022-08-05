@@ -7,12 +7,25 @@ import (
 	"Gotcha/internal/app/logging"
 	"Gotcha/internal/app/storage"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 )
 
 var (
-	apiRootPath = "/api"
+	apiRootPath  = "/api"
+	apiNotesPath = apiRootPath + "/knd"
 
-	apiHeartbeat = newApiHandle("/heartbeat", "GET")
+	apiHeartbeat = newApiHandle("/heartbeat", true, "GET", "OPTIONS")
+	apiSignup    = newApiHandle("/authority/signup", true, "POST", "OPTIONS")
+	apiAuthorize = newApiHandle("/authority/signin", true, "POST", "OPTIONS")
+
+	apiGetBoards = newApiHandle("/boards", false, "GET", "OPTIONS")
+)
+
+type serverState int
+
+const (
+	stateRunning serverState = iota
+	stateMangled
 )
 
 type apiHandle struct {
@@ -20,26 +33,33 @@ type apiHandle struct {
 	methods []string
 }
 
-func newApiHandle(path string, methods ...string) apiHandle {
-	return apiHandle{path: apiRootPath + path, methods: methods}
+func newApiHandle(path string, addBase bool, methods ...string) apiHandle {
+	if addBase {
+		path = apiRootPath + path
+	}
+	return apiHandle{path: path, methods: methods}
 }
 
 // GotchaAPIServer is a container of server-needed interfaces like logging, cookie store and router
 type GotchaAPIServer struct {
-	router  *mux.Router
-	logger  logging.GotchaLogger
-	cfg     *GotchaConfiguration
-	storage storage.Storage
+	state       serverState
+	router      *mux.Router
+	logger      logging.GotchaLogger
+	cfg         *GotchaConfiguration
+	storage     storage.Storage
+	cookieStore sessions.Store
 	// storage store.storage
 }
 
 // newAPIServer returns an instance of GotchaAPIServer with registered handlers and middlewares
-func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage storage.Storage) *GotchaAPIServer {
+func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage storage.Storage, cookieStore sessions.Store) *GotchaAPIServer {
 	server := GotchaAPIServer{
-		logger:  logger,
-		router:  mux.NewRouter(),
-		cfg:     cfg,
-		storage: storage,
+		logger:      logger,
+		router:      mux.NewRouter(),
+		cfg:         cfg,
+		storage:     storage,
+		state:       stateRunning,
+		cookieStore: cookieStore,
 	}
 
 	// Register handlers & middlewares
@@ -49,10 +69,21 @@ func newAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage
 }
 
 func (srv *GotchaAPIServer) registerHandlers() {
+	// Authorization not required
 	srv.router.HandleFunc(apiHeartbeat.path, srv.heartbeatAPIHandler()).Methods(apiHeartbeat.methods...)
+	srv.router.HandleFunc(apiSignup.path, srv.signupHandler()).Methods(apiSignup.methods...)
+	srv.router.HandleFunc(apiAuthorize.path, srv.signinHandler()).Methods(apiAuthorize.methods...)
+
+	// Authorization middleware enabled`
+	noteSubRouter := srv.router.PathPrefix(apiNotesPath).Subrouter()
+	noteSubRouter.Use(srv.authorizationMiddleware)
+	noteSubRouter.HandleFunc(apiGetBoards.path, srv.getBoardsHandler()).Methods(apiGetBoards.methods...)
 }
 
 func (srv *GotchaAPIServer) error(w http.ResponseWriter, code int, err error) {
+	if code == http.StatusInternalServerError && srv.state == stateRunning {
+		srv.state = stateMangled
+	}
 	srv.respond(w, code, map[string]string{"error": err.Error()})
 }
 
