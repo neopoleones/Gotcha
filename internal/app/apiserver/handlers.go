@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"Gotcha/internal/app/model"
+	"Gotcha/internal/app/storage"
 )
 
 const (
@@ -81,7 +81,7 @@ func (srv *GotchaAPIServer) signupHandler() http.HandlerFunc {
 		if err := srv.storage.User().SaveUser(&tmpUser); err != nil {
 
 			// Hide real error, because it contains sensitive information
-			if strings.Contains(err.Error(), "duplicate") {
+			if errors.Is(err, storage.ErrEntityDuplicate) {
 				err = errUserExists
 			} else {
 				err = errInvalidUser

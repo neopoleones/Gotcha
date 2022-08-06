@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"database/sql"
+	"strings"
 
 	"Gotcha/internal/app/model"
 	"Gotcha/internal/app/storage"
@@ -50,7 +51,11 @@ func (repo *UserRepository) SaveUser(user *model.User) error {
 	}
 
 	resultRow := repo.store.db.QueryRow(saveUserQuery, user.Username, user.Email, user.Hash)
-	return resultRow.Scan(&user.ID, &user.CreatedAt)
+	err := resultRow.Scan(&user.ID, &user.CreatedAt)
+	if err != nil && strings.Contains(err.Error(), "duplicate") {
+		return storage.ErrEntityDuplicate
+	}
+	return err
 }
 
 func (repo *UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) {
