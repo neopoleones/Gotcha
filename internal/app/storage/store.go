@@ -13,4 +13,5 @@ type Storage interface {
 var (
 	ErrNotFound        = errors.New("entity not found")
 	ErrEntityDuplicate = errors.New("entity duplicate")
+	ErrSecurityError   = errors.New("not permitted")
 )

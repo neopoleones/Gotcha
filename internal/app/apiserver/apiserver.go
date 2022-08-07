@@ -11,14 +11,17 @@ import (
 )
 
 var (
-	ApiRootPath  = "/api"
-	ApiNotesPath = ApiRootPath + "/knd"
+	ApiRootPath   = "/api"
+	ApiBoardsPath = ApiRootPath + "/boards"
 
-	ApiHeartbeat = newApiHandle("/heartbeat", true, "GET", "OPTIONS")
-	ApiSignup    = newApiHandle("/authority/signup", true, "POST", "OPTIONS")
-	ApiAuthorize = newApiHandle("/authority/signin", true, "POST", "OPTIONS")
+	ApiHeartbeat = newApiHandle("/heartbeat", true, "GET")
+	ApiSignup    = newApiHandle("/authority/signup", true, "POST")
+	ApiAuthorize = newApiHandle("/authority/signin", true, "POST")
 
-	ApiGetBoards = newApiHandle("/boards", false, "GET", "OPTIONS")
+	// path /boards
+	ApiGetBoards       = newApiHandle("/all", false, "GET")
+	ApiNewRootBoard    = newApiHandle("/root", false, "POST")
+	ApiDeleteRootBoard = newApiHandle("/root", false, "DELETE")
 )
 
 type serverState int
@@ -70,24 +73,31 @@ func NewAPIServer(logger logging.GotchaLogger, cfg *GotchaConfiguration, storage
 
 func (srv *GotchaAPIServer) registerHandlers() {
 	// Authorization not required
+	srv.Router.Use(srv.setRequestID)
+	srv.Router.Use(srv.loggingMiddleware)
 	srv.Router.HandleFunc(ApiHeartbeat.Path, srv.heartbeatAPIHandler()).Methods(ApiHeartbeat.Methods...)
 	srv.Router.HandleFunc(ApiSignup.Path, srv.signupHandler()).Methods(ApiSignup.Methods...)
 	srv.Router.HandleFunc(ApiAuthorize.Path, srv.signinHandler()).Methods(ApiAuthorize.Methods...)
 
 	// Authorization middleware enabled`
-	noteSubRouter := srv.Router.PathPrefix(ApiNotesPath).Subrouter()
+	noteSubRouter := srv.Router.PathPrefix(ApiBoardsPath).Subrouter()
 	noteSubRouter.Use(srv.authorizationMiddleware)
 	noteSubRouter.HandleFunc(ApiGetBoards.Path, srv.getBoardsHandler()).Methods(ApiGetBoards.Methods...)
+	noteSubRouter.HandleFunc(ApiNewRootBoard.Path, srv.newRootBoardHandler()).Methods(ApiNewRootBoard.Methods...)
+	noteSubRouter.HandleFunc(ApiDeleteRootBoard.Path, srv.deleteRootBoardHandler()).Methods(ApiDeleteRootBoard.Methods...)
 }
 
-func (srv *GotchaAPIServer) error(w http.ResponseWriter, code int, err error) {
+func (srv *GotchaAPIServer) error(w http.ResponseWriter, request *http.Request, code int, err error) {
 	if code == http.StatusInternalServerError && srv.state == stateRunning {
 		srv.state = stateMangled
 	}
-	srv.respond(w, code, map[string]string{"error": err.Error()})
+	srv.respond(w, request, code, map[string]string{"error": err.Error()})
 }
 
-func (srv *GotchaAPIServer) respond(w http.ResponseWriter, code int, data any) {
+func (srv *GotchaAPIServer) respond(w http.ResponseWriter, request *http.Request, code int, data any) {
+	// HELLCODE: Save status code in context for logger
+	*(request.Context().Value(ctxStatusCodeKey).(*int)) = code
+
 	w.WriteHeader(code)
 	if data != nil {
 		_ = json.NewEncoder(w).Encode(data)

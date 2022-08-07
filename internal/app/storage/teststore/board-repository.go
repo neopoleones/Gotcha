@@ -51,13 +51,17 @@ func (b *BoardRepository) GetRootBoardsOfUser(user *model.User) ([]*model.Board,
 	return boards, nil
 }
 
-func (b *BoardRepository) GetPrivilegeFromRelation(relationID uuid.UUID) (model.PrivilegeType, error) {
+func (b *BoardRepository) GetPrivilegeFromRelation(relationID uuid.UUID) (*model.BoardPermission, error) {
 	for _, relation := range b.Relations {
 		if relation.ID == relationID {
-			return relation.privilegeType, nil
+			return &model.BoardPermission{
+				BoardID:   relation.BoardID,
+				UserID:    relation.UserID,
+				Privilege: relation.privilegeType,
+			}, nil
 		}
 	}
-	return -1, storage.ErrNotFound
+	return nil, storage.ErrNotFound
 }
 
 func (b *BoardRepository) CreateRelation(board *model.Board, user *model.User, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error) {
@@ -71,4 +75,15 @@ func (b *BoardRepository) CreateRelation(board *model.Board, user *model.User, d
 
 	b.Relations = append(b.Relations, &rel)
 	return rel.ID, nil
+}
+
+// TODO: add security checks like in postgres store
+func (b *BoardRepository) DeleteRootBoard(boardID uuid.UUID, relations []uuid.UUID, user *model.User) error {
+	for i, rel := range b.Relations {
+		if rel.BoardID == boardID {
+			b.Relations = append(b.Relations[:i], b.Relations[i+1:]...)
+		}
+	}
+	delete(b.Boards, boardID)
+	return nil // Implementation requirement
 }

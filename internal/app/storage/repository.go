@@ -14,6 +14,7 @@ type UserRepository interface {
 type BoardRepository interface {
 	NewRootBoard(user *model.User, title string) (*model.Board, error)
 	GetRootBoardsOfUser(user *model.User) ([]*model.Board, error)
-	GetPrivilegeFromRelation(relationID uuid.UUID) (model.PrivilegeType, error)
+	GetPrivilegeFromRelation(relationID uuid.UUID) (*model.BoardPermission, error)
+	DeleteRootBoard(boardID uuid.UUID, relations []uuid.UUID, user *model.User) error
 	CreateRelation(board *model.Board, user *model.User, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error)
 }

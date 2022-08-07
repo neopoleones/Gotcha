@@ -35,7 +35,22 @@ func TestBoardRepository_Relations(t *testing.T) {
 	relationID, err := boardRepo.CreateRelation(testBoard, testUser, postgres.DescriptionAllGranted, model.PrivilegeReadOnly)
 	assert.NoError(t, err, "Failed to create relation")
 
-	relationPrivilege, err := boardRepo.GetPrivilegeFromRelation(relationID)
+	bp, err := boardRepo.GetPrivilegeFromRelation(relationID)
 	assert.NoError(t, err, "Failed to get relation privilege")
-	assert.Equal(t, relationPrivilege, model.PrivilegeReadOnly)
+	assert.Equal(t, bp.Privilege, model.PrivilegeReadOnly)
+	assert.Equal(t, bp.BoardID, testBoard.ID)
+}
+
+func TestBoardRepository_DeleteRootBoard(t *testing.T) {
+	store := teststore.New()
+	userRepo := store.User()
+	boardRepo := store.Board()
+
+	testUser := model.TestUser(t)
+	_ = userRepo.SaveUser(testUser)
+
+	testBoard, _ := boardRepo.NewRootBoard(testUser, "Example root board")
+	assert.NoError(t, boardRepo.DeleteRootBoard(testBoard.ID, testBoard.U2BRelations, testUser), "Failed to delete board")
+	boards, _ := boardRepo.GetRootBoardsOfUser(testUser)
+	assert.Equal(t, len(boards), 0, "Board still exists in database")
 }

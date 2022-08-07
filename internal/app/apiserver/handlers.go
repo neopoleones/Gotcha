@@ -9,6 +9,7 @@ import (
 
 	"Gotcha/internal/app/model"
 	"Gotcha/internal/app/storage"
+	"github.com/google/uuid"
 )
 
 const (
@@ -51,7 +52,7 @@ func (srv *GotchaAPIServer) heartbeatAPIHandler() http.HandlerFunc {
 
 		err := json.NewEncoder(w).Encode(serverStatus)
 		if err != nil {
-			srv.error(w, http.StatusInternalServerError, err)
+			srv.error(w, r, http.StatusInternalServerError, err)
 		}
 	}
 }
@@ -68,7 +69,7 @@ func (srv *GotchaAPIServer) signupHandler() http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		rReq := RegisterRequest{}
 		if err := json.NewDecoder(request.Body).Decode(&rReq); err != nil {
-			srv.error(writer, http.StatusBadRequest, err)
+			srv.error(writer, request, http.StatusBadRequest, err)
 			return
 		}
 
@@ -86,12 +87,12 @@ func (srv *GotchaAPIServer) signupHandler() http.HandlerFunc {
 			} else {
 				err = errInvalidUser
 			}
-			srv.error(writer, http.StatusUnprocessableEntity, err)
+			srv.error(writer, request, http.StatusUnprocessableEntity, err)
 			return
 		}
 
 		creationMessage := fmt.Sprintf("%s was created successfully", tmpUser.Username)
-		srv.respond(writer, http.StatusOK, creationMessage)
+		srv.respond(writer, request, http.StatusOK, creationMessage)
 	}
 }
 
@@ -104,26 +105,26 @@ func (srv *GotchaAPIServer) signinHandler() http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		lReq := loginRequest{}
 		if err := json.NewDecoder(request.Body).Decode(&lReq); err != nil {
-			srv.error(writer, http.StatusBadRequest, err)
+			srv.error(writer, request, http.StatusBadRequest, err)
 			return
 		}
 
 		user, err := srv.storage.User().FindUserBySobriquet(lReq.Sobriquet)
 		if err != nil || !user.IsCorrectPassword(lReq.Password) {
-			srv.error(writer, http.StatusUnauthorized, errMixedIncorrect)
+			srv.error(writer, request, http.StatusUnauthorized, errMixedIncorrect)
 			return
 		}
 
 		session, err := srv.cookieStore.Get(request, sessionName)
 		if err != nil {
-			srv.error(writer, http.StatusInternalServerError, err)
+			srv.error(writer, request, http.StatusInternalServerError, err)
 			return
 		}
 		session.Values["user_id"] = user.ID.String()
 		if err := srv.cookieStore.Save(request, writer, session); err != nil {
-			srv.error(writer, http.StatusInternalServerError, err)
+			srv.error(writer, request, http.StatusInternalServerError, err)
 		}
-		srv.respond(writer, http.StatusOK, nil)
+		srv.respond(writer, request, http.StatusOK, nil)
 	}
 }
 
@@ -131,12 +132,82 @@ func (srv *GotchaAPIServer) signinHandler() http.HandlerFunc {
 func (srv *GotchaAPIServer) getBoardsHandler() http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		userWrapped := request.Context().Value(ctxVerifiedUserKey)
-		if user, ok := userWrapped.(model.User); ok {
-
-			// **PLACEHOLDER**, make teststorage and then continue coding the getBoardsHandler
-			srv.respond(writer, http.StatusOK, user)
+		user, converted := userWrapped.(model.User)
+		if !converted {
+			srv.error(writer, request, http.StatusUnauthorized, errUnauthorized)
 			return
 		}
-		srv.error(writer, http.StatusUnauthorized, errUnauthorized)
+		boards, err := srv.storage.Board().GetRootBoardsOfUser(&user)
+		if err != nil {
+			srv.error(writer, request, http.StatusInternalServerError, err)
+			return
+		}
+		srv.respond(writer, request, http.StatusOK, boards)
+	}
+}
+
+func (srv *GotchaAPIServer) newRootBoardHandler() http.HandlerFunc {
+	type newBoardRequest struct {
+		Title string `json:"title"`
+	}
+
+	return func(writer http.ResponseWriter, request *http.Request) {
+		// Get user and title
+		req := newBoardRequest{}
+		userWrapped := request.Context().Value(ctxVerifiedUserKey)
+		user, converted := userWrapped.(model.User)
+		if !converted {
+			srv.error(writer, request, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
+
+		board, err := srv.storage.Board().NewRootBoard(&user, req.Title)
+		if err != nil {
+			srv.error(writer, request, http.StatusUnprocessableEntity, err)
+			return
+		}
+		srv.respond(writer, request, http.StatusOK, board)
+	}
+}
+
+func (srv *GotchaAPIServer) deleteRootBoardHandler() http.HandlerFunc {
+	type deleteRequest struct {
+		BoardID   uuid.UUID   `json:"board_id"`
+		Relations []uuid.UUID `json:"relations"`
+	}
+	return func(writer http.ResponseWriter, request *http.Request) {
+		req := deleteRequest{}
+		userWrapped := request.Context().Value(ctxVerifiedUserKey)
+		user, converted := userWrapped.(model.User)
+
+		if !converted {
+			srv.error(writer, request, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
+
+		// Perform delete operation
+		if err := srv.storage.Board().DeleteRootBoard(req.BoardID, req.Relations, &user); err != nil {
+			if err == storage.ErrSecurityError {
+				srv.error(writer, request, http.StatusUnauthorized, err)
+			} else if err == storage.ErrNotFound {
+				srv.error(writer, request, http.StatusUnprocessableEntity, err)
+			} else {
+				srv.error(writer, request, http.StatusInternalServerError, err)
+			}
+			return
+		}
+
+		// Then user isn't an author
+		srv.respond(writer, request, http.StatusOK, nil)
 	}
 }

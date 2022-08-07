@@ -14,7 +14,7 @@ import (
 
 var (
 	logrusInstance *logrus.Logger
-	once sync.Once
+	once           sync.Once
 )
 
 // enrichCallerInformation is a custom caller prettyfier. It takes current frame and returns
@@ -23,7 +23,7 @@ func enrichCallerInformation(frame *runtime.Frame) (function string, file string
 	dir, fileName := path.Split(frame.File)
 	trimmedDir := path.Base(dir)
 
-	funcName := fmt.Sprintf("[%s:%d]", frame.Function, frame.Line)
+	funcName := fmt.Sprintf("[%s:%d]", path.Base(frame.Function), frame.Line)
 	return funcName, path.Join(trimmedDir, fileName)
 }
 
@@ -50,10 +50,10 @@ func GetLogger(cfg *logging.LoggerConfiguration) *logrus.Entry {
 		} else {
 			customTextFormatter := &logrus.TextFormatter{
 				FullTimestamp: true,
-				ForceQuote: true,
+				ForceQuote:    true,
 			}
 
-			if cfg.OutputFormat == logging.OutputFormatTerminal{
+			if cfg.OutputFormat == logging.OutputFormatTerminal {
 				customTextFormatter.DisableColors = true
 			} else if cfg.OutputFormat == logging.OutputFormatColored {
 				customTextFormatter.CallerPrettyfier = enrichCallerInformation

@@ -23,6 +23,12 @@ type Board struct {
 	U2BRelations []uuid.UUID `json:"relations"`
 }
 
+type BoardPermission struct {
+	BoardID   uuid.UUID
+	UserID    uuid.UUID
+	Privilege PrivilegeType
+}
+
 func NewBoard(title string) *Board {
 	return &Board{
 		U2BRelations: make([]uuid.UUID, 0, 4),
@@ -36,4 +42,15 @@ func (b *Board) AddRelation(uuid uuid.UUID) {
 
 func (b *Board) Validate() error {
 	return validation.Validate(b.Title, validation.Length(1, 255))
+}
+
+func BoardInList(id uuid.UUID, boards []*Board) bool {
+	var found bool
+	for _, b := range boards {
+		if b.ID == id {
+			found = true
+			break
+		}
+	}
+	return found
 }
