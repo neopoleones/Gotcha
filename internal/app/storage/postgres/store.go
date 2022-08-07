@@ -8,8 +8,9 @@ import (
 
 // Store is an SQL(postgresql tested) implementation of gotcha storage
 type Store struct {
-	db             *sql.DB
-	userRepository *UserRepository
+	db              *sql.DB
+	userRepository  *UserRepository
+	boardRepository *BoardRepository
 }
 
 func NewStore(db *sql.DB) *Store {
@@ -24,6 +25,13 @@ func (store *Store) User() storage.UserRepository {
 		store.userRepository = &UserRepository{store: store}
 	}
 	return store.userRepository
+}
+
+func (store *Store) Board() storage.BoardRepository {
+	if store.boardRepository == nil {
+		store.boardRepository = &BoardRepository{store: store}
+	}
+	return store.boardRepository
 }
 
 func (store *Store) Close() {

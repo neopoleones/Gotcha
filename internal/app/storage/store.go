@@ -5,6 +5,7 @@ import (
 )
 
 type Storage interface {
+	Board() BoardRepository
 	User() UserRepository
 	Close()
 }

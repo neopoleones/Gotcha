@@ -8,7 +8,8 @@ import (
 
 type Storage struct {
 	// Repositories
-	userRepository *UserRepository
+	userRepository  *UserRepository
+	boardRepository *BoardRepository
 }
 
 // New ...
@@ -24,6 +25,17 @@ func (storage *Storage) User() storage.UserRepository {
 		}
 	}
 	return storage.userRepository
+}
+
+func (storage *Storage) Board() storage.BoardRepository {
+	if storage.boardRepository == nil {
+		storage.boardRepository = &BoardRepository{
+			storage,
+			make([]*Relation, 0),
+			make(map[uuid.UUID]*model.Board),
+		}
+	}
+	return storage.boardRepository
 }
 
 func (storage *Storage) Close() {

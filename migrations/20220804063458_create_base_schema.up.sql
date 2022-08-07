@@ -14,7 +14,7 @@ CREATE TABLE "UserToBoard"(
                               "id" UUID NOT NULL DEFAULT uuid_generate_v4(),
                               "board_id" UUID NOT NULL,
                               "user_id" UUID NOT NULL,
-                              "access_type" UUID NOT NULL,
+                              "access_type" int NOT NULL,
                               "description" VARCHAR(255) NOT NULL,
                               "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -33,13 +33,13 @@ ALTER TABLE
     "Board" ADD PRIMARY KEY("id");
 
 CREATE TABLE "BoardPrivileges"(
-                                  "id" UUID NOT NULL DEFAULT uuid_generate_v4(),
+                                  "id" SERIAL,
                                   "privilege" VARCHAR(255) NOT NULL
 );
 ALTER TABLE
     "BoardPrivileges" ADD PRIMARY KEY("id");
 CREATE TABLE "Note"(
-                       "id" INTEGER NOT NULL,
+                       "id" SERIAL,
                        "read_only" BOOLEAN NOT NULL,
                        "title" VARCHAR(255) NOT NULL,
                        "content" text NOT NULL,
@@ -73,3 +73,5 @@ ALTER TABLE
     "BoardToBoard" ADD CONSTRAINT "boardtoboard_subboard_id_foreign" FOREIGN KEY("subboard_id") REFERENCES "Board"("id");
 ALTER TABLE
     "Note" ADD CONSTRAINT "note_board_bridge_id_foreign" FOREIGN KEY("board_bridge_id") REFERENCES "BoardToBoard"("id");
+
+insert into "BoardPrivileges"(privilege) values ('PrivilegeAuthor'), ('PrivilegeReadOnly'), ('PrivilegeReadWrite')
