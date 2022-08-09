@@ -18,7 +18,6 @@ var (
 	ApiSignup    = newApiHandle("/authority/signup", true, "POST")
 	ApiAuthorize = newApiHandle("/authority/signin", true, "POST")
 
-	// path /boards
 	ApiGetBoards       = newApiHandle("/all", false, "GET")
 	ApiNewRootBoard    = newApiHandle("/root", false, "POST")
 	ApiDeleteRootBoard = newApiHandle("/root", false, "DELETE")

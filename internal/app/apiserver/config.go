@@ -34,16 +34,25 @@ func (dbc *DatabaseConfiguration) GetConnectionString() string {
 	)
 }
 
+type RedisConfiguration struct {
+	RedisHost       string `toml:"host" env:"REDIS_HOST"`
+	SessionLifetime int    `toml:"session_lifetime" env:"SESSION_LIFETIME"`
+	RedisPort       int    `toml:"port" env:"REDIS_PORT"`
+	IdleConnections int    `toml:"idle_connections" env:"IDLE_CONNECTIONS"`
+}
+
 // GotchaConfiguration is a simple container of presets that server really needs.
 type GotchaConfiguration struct {
-	AppName    string `toml:"app_name" env:"APP_NAME" env-default:"Gotcha app"`
-	BindIP     string `toml:"bind_ip" env:"BIND_IP" env-default:"127.0.0.1"`
-	BindPort   int    `toml:"bind_port" env:"BIND_PORT" env-default:"8080"`
-	SessionKey string `toml:"session_key" env:"SESSION_KEY" env-required:"true"`
+	AppName      string `toml:"app_name" env:"APP_NAME" env-default:"Gotcha app"`
+	BindIP       string `toml:"bind_ip" env:"BIND_IP" env-default:"127.0.0.1"`
+	BindPort     int    `toml:"bind_port" env:"BIND_PORT" env-default:"8080"`
+	SessionKey   string `toml:"session_key" env:"SESSION_KEY" env-required:"true"`
+	CookiesStore string `toml:"store" env:"STORE" env-default:"default"`
 
 	// Just some nested settings
 	LoggerConfiguration   logging.LoggerConfiguration `toml:"logger_configuration"`
 	DatabaseConfiguration DatabaseConfiguration       `toml:"database_configuration"`
+	RedisConfiguration    RedisConfiguration          `toml:"redis_configuration"`
 }
 
 // NewConfiguration loads the configuration from toml file (or env variables). Panics on error.

@@ -15,3 +15,7 @@ var (
 	ErrEntityDuplicate = errors.New("entity duplicate")
 	ErrSecurityError   = errors.New("not permitted")
 )
+
+const (
+	SessionsStoreRedis = "redis"
+)
