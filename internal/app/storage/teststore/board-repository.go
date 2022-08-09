@@ -31,13 +31,13 @@ func (b *BoardRepository) NewRootBoard(user *model.User, title string) (*model.B
 		return nil, err
 	}
 
-	board.CreatedAt = time.Now()
-	board.ID = uuid.New()
+	board.Base.CreatedAt = time.Now()
+	board.Base.ID = uuid.New()
 
 	relID, _ := b.CreateRelation(board, user, "Root board", model.PrivilegeAuthor)
 
 	board.AddRelation(relID)
-	b.Boards[board.ID] = board
+	b.Boards[board.Base.ID] = board
 	return board, nil
 }
 
@@ -67,7 +67,7 @@ func (b *BoardRepository) GetPrivilegeFromRelation(relationID uuid.UUID) (*model
 func (b *BoardRepository) CreateRelation(board *model.Board, user *model.User, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error) {
 	rel := Relation{
 		ID:            uuid.New(),
-		BoardID:       board.ID,
+		BoardID:       board.Base.ID,
 		Description:   desc,
 		privilegeType: privilegeType,
 		UserID:        user.ID,
@@ -77,13 +77,23 @@ func (b *BoardRepository) CreateRelation(board *model.Board, user *model.User, d
 	return rel.ID, nil
 }
 
-// TODO: add security checks like in postgres store
 func (b *BoardRepository) DeleteRootBoard(boardID uuid.UUID, relations []uuid.UUID, user *model.User) error {
-	for i, rel := range b.Relations {
-		if rel.BoardID == boardID {
-			b.Relations = append(b.Relations[:i], b.Relations[i+1:]...)
+	for _, givenRelation := range relations {
+		currBoardPermission, err := b.GetPrivilegeFromRelation(givenRelation)
+
+		// User attempted to bypass mitigations
+		if currBoardPermission.BoardID != boardID || currBoardPermission.UserID != user.ID || err != nil {
+			return storage.ErrSecurityError
+		}
+		if currBoardPermission.Privilege == model.PrivilegeAuthor {
+			for i, rel := range b.Relations {
+				if rel.BoardID == boardID {
+					b.Relations = append(b.Relations[:i], b.Relations[i+1:]...)
+				}
+			}
+			delete(b.Boards, boardID)
+			return nil
 		}
 	}
-	delete(b.Boards, boardID)
-	return nil // Implementation requirement
+	return storage.ErrSecurityError
 }

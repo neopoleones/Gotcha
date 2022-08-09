@@ -85,6 +85,6 @@ func (srv *GotchaAPIServer) loggingMiddleware(handler http.Handler) http.Handler
 		startTime := time.Now()
 
 		handler.ServeHTTP(writer, request.WithContext(wrappedContext))
-		srv.logger.WithFields(fields).Infof("Served for %v. Status code: %d", time.Now().Sub(startTime), resultCode)
+		srv.logger.WithFields(fields).Infof("Served for %v. Status code: %d", time.Since(startTime), resultCode)
 	})
 }

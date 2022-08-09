@@ -48,7 +48,7 @@ func (br *BoardRepository) NewRootBoard(user *model.User, title string) (*model.
 	}
 
 	// Save board
-	if err := br.store.db.QueryRow(InsertBoardQuery, title).Scan(&board.ID, &board.CreatedAt); err != nil {
+	if err := br.store.db.QueryRow(InsertBoardQuery, title).Scan(&board.Base.ID, &board.Base.CreatedAt); err != nil {
 		return nil, err
 	}
 
@@ -77,15 +77,15 @@ func (br *BoardRepository) GetRootBoardsOfUser(user *model.User) ([]*model.Board
 		board := model.NewBoard("default")
 
 		// Just scan the row into board instance
-		if err := boardRows.Scan(&board.ID, &board.Title, &board.CreatedAt, &relationID); err != nil {
+		if err := boardRows.Scan(&board.Base.ID, &board.Base.Title, &board.Base.CreatedAt, &relationID); err != nil {
 			return nil, err
 		}
 
 		// Get all relations for boards
-		savedBoard, found := boardsMap[board.ID]
+		savedBoard, found := boardsMap[board.Base.ID]
 		if !found {
 			board.AddRelation(relationID)
-			boardsMap[board.ID] = board
+			boardsMap[board.Base.ID] = board
 		} else {
 			savedBoard.AddRelation(relationID)
 		}
@@ -96,7 +96,7 @@ func (br *BoardRepository) GetRootBoardsOfUser(user *model.User) ([]*model.Board
 
 func (br *BoardRepository) CreateRelation(board *model.Board, user *model.User, desc string, ac model.PrivilegeType) (uuid.UUID, error) {
 	var authorRelation uuid.UUID
-	relationRow := br.store.db.QueryRow(InsertBoardRelationQuery, board.ID, user.ID, ac, desc)
+	relationRow := br.store.db.QueryRow(InsertBoardRelationQuery, board.Base.ID, user.ID, ac, desc)
 	if err := relationRow.Scan(&authorRelation); err != nil {
 		return uuid.Nil, err
 	}

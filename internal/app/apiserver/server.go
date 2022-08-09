@@ -59,7 +59,7 @@ func Start(ctx context.Context, cfg *GotchaConfiguration, logger logging.GotchaL
 		Handler: srv.Router,
 	}
 
-	// Then fire it in second gorutine!
+	// Then fire it in second goroutine!
 	go func() {
 		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Panicln(err)

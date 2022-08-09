@@ -47,13 +47,10 @@ func (srv *GotchaAPIServer) heartbeatAPIHandler() http.HandlerFunc {
 		serverStatus := ServerStatus{
 			AppName: srv.cfg.AppName,
 			Status:  state,
-			Uptime:  time.Now().Sub(handlerRegisteredTime),
+			Uptime:  time.Since(handlerRegisteredTime),
 		}
 
-		err := json.NewEncoder(w).Encode(serverStatus)
-		if err != nil {
-			srv.error(w, r, http.StatusInternalServerError, err)
-		}
+		srv.respond(w, r, http.StatusOK, serverStatus)
 	}
 }
 
