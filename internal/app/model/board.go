@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/google/uuid"
 )
@@ -13,6 +15,18 @@ const (
 	PrivilegeReadOnly
 	PrivilegeReadWrite
 )
+
+type BaseBoard struct {
+	Title     string    `json:"title"`
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type NestedBoard struct {
+	Base       BaseBoard
+	RootBoard  uuid.UUID
+	RelationID uuid.UUID
+}
 
 type Board struct {
 	Base         BaseBoard
@@ -36,6 +50,6 @@ func (b *Board) AddRelation(uuid uuid.UUID) {
 	b.U2BRelations = append(b.U2BRelations, uuid)
 }
 
-func (b *Board) Validate() error {
-	return validation.Validate(b.Base.Title, validation.Length(1, 255))
+func (b *BaseBoard) Validate() error {
+	return validation.Validate(b.Title, validation.Length(1, 255))
 }

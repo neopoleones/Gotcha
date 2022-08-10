@@ -37,7 +37,7 @@ func TestBoardRepository_Relations(t *testing.T) {
 	_ = userRepo.SaveUser(testUser)
 
 	testBoard, _ := boardRepo.NewRootBoard(testUser, "Example root board")
-	relationID, err := boardRepo.CreateRelation(testBoard, testUser, postgres.DescriptionAllGranted, model.PrivilegeReadOnly)
+	relationID, err := boardRepo.CreateRelation(testBoard.Base.ID, testUser.ID, postgres.DescriptionAllGranted, model.PrivilegeReadOnly)
 	assert.NoError(t, err, "Failed to create relation")
 
 	bp, err := boardRepo.GetPrivilegeFromRelation(relationID)
@@ -73,9 +73,121 @@ func TestBoardRepository_DeleteRootBoard(t *testing.T) {
 	anotherUser.Username += "another"
 	anotherUser.Email += "another"
 
-	newRelation, _ := boardRepo.CreateRelation(testBoard, anotherUser, "RW access for my friend", model.PrivilegeReadWrite)
+	newRelation, _ := boardRepo.CreateRelation(testBoard.Base.ID, anotherUser.ID, "RW access for my friend", model.PrivilegeReadWrite)
 
 	assert.ErrorIs(t,
 		boardRepo.DeleteRootBoard(testBoard.Base.ID, []uuid.UUID{newRelation}, anotherUser),
 		storage.ErrSecurityError, "Server allows you to delete a board as a non-owner")
+}
+
+func TestBoardRepository_NewNestedBoard(t *testing.T) {
+	db, sanitize := postgres.TestDB(t, databaseConnectionString)
+	store := postgres.NewStore(db)
+	userRepo := store.User()
+	boardRepo := store.Board()
+	defer sanitize("Users", "UserToBoard", "Board")
+
+	// Create test assets
+	user := model.TestUser(t)
+	_ = userRepo.SaveUser(user)
+	rootBoard, _ := boardRepo.NewRootBoard(user, "Root")
+
+	sideBoard, err := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested", user)
+	assert.NoError(t, err, "Failed to create side board (got error)")
+	assert.NotNil(t, sideBoard, "Failed to create side board (it's nil)")
+	assert.NotEqual(t, sideBoard.RelationID, uuid.Nil, "Relation ID is nil")
+
+	// Security check
+	secondUser := model.TestUser(t)
+	secondUser.Username += "a"
+	secondUser.Email += "a"
+
+	_ = userRepo.SaveUser(secondUser)
+	_, err = boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested", secondUser)
+	assert.Error(t, err, "Somehow created sideboard as user, that doesn't have write permission")
+
+	// Add rw permission
+	boardRepo.CreateRelation(rootBoard.Base.ID, secondUser.ID, "test", model.PrivilegeReadWrite)
+	_, err = boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested", secondUser)
+	assert.NoError(t, err, "User has a permission, but it's forbidden to create sideboard")
+}
+
+func TestBoardRepository_GetRootOfNestedBoard(t *testing.T) {
+	db, sanitize := postgres.TestDB(t, databaseConnectionString)
+	store := postgres.NewStore(db)
+	userRepo := store.User()
+	boardRepo := store.Board()
+	defer sanitize("Users", "UserToBoard", "Board")
+
+	// Create test assets
+	user := model.TestUser(t)
+	_ = userRepo.SaveUser(user)
+	rootBoard, _ := boardRepo.NewRootBoard(user, "Root")
+	sideBoard, _ := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested", user)
+	secondSide, err := boardRepo.NewNestedBoard(sideBoard.Base.ID, "Nested", user)
+	assert.NoError(t, err, "Failed to create second side")
+
+	rootBoardFound, err := boardRepo.GetRootOfNestedBoard(secondSide.Base.ID)
+	assert.NoError(t, err, "Failed to get root of nested board")
+	assert.Equal(t, rootBoardFound.Base.ID, rootBoard.Base.ID)
+}
+
+func TestBoardRepository_GetNestedBoards(t *testing.T) {
+	db, sanitize := postgres.TestDB(t, databaseConnectionString)
+	store := postgres.NewStore(db)
+	userRepo := store.User()
+	boardRepo := store.Board()
+	defer sanitize("Users", "UserToBoard", "Board")
+
+	// Create test assets
+	user := model.TestUser(t)
+	anotherUser := model.TestUser(t)
+	anotherUser.Username += "a"
+	anotherUser.Email += "a"
+	_ = userRepo.SaveUser(user)
+	_ = userRepo.SaveUser(anotherUser)
+
+	// Add two nested boards as owner
+	rootBoard, _ := boardRepo.NewRootBoard(user, "Root")
+	nestedBoardOne, _ := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested #one", user)
+	nestedBoardTwo, _ := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested #two", user)
+
+	// And one as guest user (rw privilege)
+	boardRepo.CreateRelation(rootBoard.Base.ID, anotherUser.ID, "test", model.PrivilegeReadWrite)
+	_, err := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested another", anotherUser)
+
+	boards, err := boardRepo.GetNestedBoards(rootBoard.Base.ID, user)
+	assert.NoError(t, err, "Failed to get nested boards")
+	assert.Equal(t, len(boards), 3)
+	assert.Equal(t, boards[0].RelationID, nestedBoardOne.RelationID)
+	assert.Equal(t, boards[1].RelationID, nestedBoardTwo.RelationID)
+}
+
+func TestBoardRepository_DeleteNestedBoard(t *testing.T) {
+	db, sanitize := postgres.TestDB(t, databaseConnectionString)
+	store := postgres.NewStore(db)
+	userRepo := store.User()
+	boardRepo := store.Board()
+	defer sanitize("Users", "UserToBoard", "Board")
+
+	// Create test assets
+	user := model.TestUser(t)
+	anotherUser := model.TestUser(t)
+	anotherUser.Username += "a"
+	anotherUser.Email += "a"
+	_ = userRepo.SaveUser(user)
+	_ = userRepo.SaveUser(anotherUser)
+
+	// Add two nested boards as owner
+	rootBoard, _ := boardRepo.NewRootBoard(user, "Root")
+	nestedBoardOne, _ := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested #one", user)
+	nestedBoardTwo, _ := boardRepo.NewNestedBoard(rootBoard.Base.ID, "Nested #two", user)
+
+	// Successful delete (as author)
+	assert.NoError(t, boardRepo.DeleteNestedBoard(nestedBoardTwo.Base.ID, user), "Failed to delete nested board")
+	boards, _ := boardRepo.GetNestedBoards(rootBoard.Base.ID, user)
+	assert.Equal(t, len(boards), 1, "Board not deleted!")
+
+	// Attempt to delete board as user without permissions
+	assert.Error(t, boardRepo.DeleteNestedBoard(nestedBoardOne.Base.ID, anotherUser), "Failed to delete nested board")
 }

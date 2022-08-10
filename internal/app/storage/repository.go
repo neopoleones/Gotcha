@@ -16,5 +16,10 @@ type BoardRepository interface {
 	GetRootBoardsOfUser(user *model.User) ([]*model.Board, error)
 	GetPrivilegeFromRelation(relationID uuid.UUID) (*model.BoardPermission, error)
 	DeleteRootBoard(boardID uuid.UUID, relations []uuid.UUID, user *model.User) error
-	CreateRelation(board *model.Board, user *model.User, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error)
+	GetRootOfNestedBoard(boardID uuid.UUID) (*model.Board, error)
+	NewNestedBoard(rootBoardID uuid.UUID, title string, user *model.User) (*model.NestedBoard, error)
+	GetNestedBoards(rootBoardID uuid.UUID, user *model.User) ([]*model.NestedBoard, error)
+	DeleteNestedBoard(boardID uuid.UUID, user *model.User) error
+	GetBoardInfo(boardID uuid.UUID) (*model.Board, error)
+	CreateRelation(boardID, userID uuid.UUID, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error)
 }

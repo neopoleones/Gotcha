@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"database/sql"
+	"errors"
 	"strings"
 
 	"Gotcha/internal/app/model"
@@ -11,6 +13,11 @@ import (
 const (
 	InsertBoardQuery = `
 		INSERT INTO "Board"(title) VALUES($1) RETURNING id, created_at;
+	`
+	GetRelationsOfBoardQuery = `
+		SELECT utb.id, b.title, b.created_at FROM "Board" b
+			INNER JOIN "UserToBoard" utb ON utb.board_id = b.id
+		WHERE utb.board_id = $1;
 	`
 	InsertBoardRelationQuery = `
 		INSERT INTO "UserToBoard"(board_id, user_id, access_type, description)
@@ -27,9 +34,23 @@ const (
 	DeleteRelationsByBoardID = `
 		DELETE FROM "UserToBoard" WHERE board_id = $1;
 	`
-	DeleteBoardsByID = `
+	DeleteBoardByID = `
 		DELETE FROM "Board" WHERE id = $1;
 	`
+	NewNestedBoardRelation = `
+		INSERT INTO "BoardToBoard"(root_board_id, subboard_id) VALUES ($1, $2) returning id;
+    `
+	GetNestedBoardsQuery = `
+		SELECT b2b.id, b2b.subboard_id, b.created_at, b.title from "BoardToBoard" b2b 
+			inner join "Board" b on b.id = b2b.subboard_id
+		where root_board_id = $1;
+	`
+	DeleteNestedBoardRelation = `
+		DELETE FROM "BoardToBoard" where subboard_id = $1;
+	`
+	GetRootOfSideBoardQuery = `
+    	SELECT root_board_id from "BoardToBoard" where subboard_id = $1;
+    `
 )
 
 const (
@@ -43,7 +64,7 @@ type BoardRepository struct {
 func (br *BoardRepository) NewRootBoard(user *model.User, title string) (*model.Board, error) {
 	board := model.NewBoard(title)
 
-	if err := board.Validate(); err != nil {
+	if err := board.Base.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -53,7 +74,7 @@ func (br *BoardRepository) NewRootBoard(user *model.User, title string) (*model.
 	}
 
 	// Create author relation
-	rel, err := br.CreateRelation(board, user, DescriptionAllGranted, model.PrivilegeAuthor)
+	rel, err := br.CreateRelation(board.Base.ID, user.ID, DescriptionAllGranted, model.PrivilegeAuthor)
 	if err != nil {
 		return nil, err
 	}
@@ -94,9 +115,9 @@ func (br *BoardRepository) GetRootBoardsOfUser(user *model.User) ([]*model.Board
 	return mapBoardValues(boardsMap), nil
 }
 
-func (br *BoardRepository) CreateRelation(board *model.Board, user *model.User, desc string, ac model.PrivilegeType) (uuid.UUID, error) {
+func (br *BoardRepository) CreateRelation(boardID, userID uuid.UUID, desc string, ac model.PrivilegeType) (uuid.UUID, error) {
 	var authorRelation uuid.UUID
-	relationRow := br.store.db.QueryRow(InsertBoardRelationQuery, board.Base.ID, user.ID, ac, desc)
+	relationRow := br.store.db.QueryRow(InsertBoardRelationQuery, boardID, userID, ac, desc)
 	if err := relationRow.Scan(&authorRelation); err != nil {
 		return uuid.Nil, err
 	}
@@ -128,12 +149,136 @@ func (br *BoardRepository) DeleteRootBoard(boardID uuid.UUID, relations []uuid.U
 			if _, err := br.store.db.Exec(DeleteRelationsByBoardID, boardID); err != nil {
 				return err
 			}
-			_, err := br.store.db.Exec(DeleteBoardsByID, boardID)
+			_, err := br.store.db.Exec(DeleteBoardByID, boardID)
 			return err
 		}
 	}
 
 	// Not an author! Refuse request
+	return storage.ErrSecurityError
+}
+
+func (br *BoardRepository) GetBoardInfo(boardID uuid.UUID) (*model.Board, error) {
+	board := model.NewBoard("default")
+	board.Base.ID = boardID
+
+	// Get relations
+	relationsRows, err := br.store.db.Query(GetRelationsOfBoardQuery, boardID)
+	if err != nil {
+		return nil, err
+	}
+	for relationsRows.Next() {
+		var relationID uuid.UUID
+		if err := relationsRows.Scan(&relationID, &board.Base.Title, &board.Base.CreatedAt); err != nil {
+			return nil, err
+		}
+		board.AddRelation(relationID)
+	}
+	return board, nil
+}
+
+func (br *BoardRepository) GetRootOfNestedBoard(boardID uuid.UUID) (*model.Board, error) {
+	var rootID uuid.UUID
+
+	err := br.store.db.QueryRow(GetRootOfSideBoardQuery, boardID).Scan(&rootID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return br.GetBoardInfo(boardID)
+		}
+		return nil, err
+	}
+	return br.GetRootOfNestedBoard(rootID)
+}
+
+func (br *BoardRepository) NewNestedBoard(rootBoardID uuid.UUID, title string, user *model.User) (*model.NestedBoard, error) {
+	rootBoard, err := br.GetRootOfNestedBoard(rootBoardID)
+	if err != nil {
+		return nil, err
+	}
+	for _, rel := range rootBoard.U2BRelations {
+		bp, err := br.GetPrivilegeFromRelation(rel)
+		if err != nil {
+			return nil, storage.ErrSecurityError
+		}
+
+		if (bp.Privilege == model.PrivilegeReadWrite || bp.Privilege == model.PrivilegeAuthor) && bp.UserID == user.ID {
+			// Save the board
+			nestedBoard := model.NestedBoard{
+				Base: model.BaseBoard{
+					Title: title,
+				},
+				RootBoard: rootBoardID,
+			}
+
+			err := br.store.db.QueryRow(InsertBoardQuery, title).Scan(&nestedBoard.Base.ID, &nestedBoard.Base.CreatedAt)
+			if err != nil {
+				return nil, err
+			}
+			err = br.store.db.QueryRow(NewNestedBoardRelation, rootBoardID, nestedBoard.Base.ID).Scan(&nestedBoard.RelationID)
+			if err != nil {
+				return nil, err
+			}
+			return &nestedBoard, nil
+		}
+	}
+	return nil, storage.ErrSecurityError
+}
+
+func (br *BoardRepository) GetNestedBoards(rootBoardID uuid.UUID, user *model.User) ([]*model.NestedBoard, error) {
+	rootBoard, err := br.GetRootOfNestedBoard(rootBoardID)
+	if err != nil {
+		return nil, err
+	}
+	for _, rel := range rootBoard.U2BRelations {
+		bp, err := br.GetPrivilegeFromRelation(rel)
+		if err != nil {
+			return nil, storage.ErrSecurityError
+		}
+
+		// Any permission allows user to see the nested boards
+		if bp.UserID == user.ID {
+			boards := make([]*model.NestedBoard, 0)
+			nestedBoardsRows, err := br.store.db.Query(GetNestedBoardsQuery, rootBoardID)
+			if err != nil {
+				return nil, err
+			}
+
+			for nestedBoardsRows.Next() {
+				board := model.NestedBoard{
+					Base:      model.BaseBoard{},
+					RootBoard: rootBoardID,
+				}
+				if err := nestedBoardsRows.Scan(&board.RelationID, &board.Base.ID, &board.Base.CreatedAt, &board.Base.Title); err != nil {
+					return nil, err
+				}
+				boards = append(boards, &board)
+
+			}
+			return boards, nil
+		}
+	}
+	return nil, storage.ErrSecurityError
+}
+
+func (br *BoardRepository) DeleteNestedBoard(boardID uuid.UUID, user *model.User) error {
+	rootBoard, err := br.GetRootOfNestedBoard(boardID)
+	if err != nil {
+		return err
+	}
+	for _, rel := range rootBoard.U2BRelations {
+		bp, err := br.GetPrivilegeFromRelation(rel)
+		if err != nil {
+			return storage.ErrSecurityError
+		}
+
+		if (bp.Privilege == model.PrivilegeAuthor || bp.Privilege == model.PrivilegeReadWrite) && user.ID == bp.UserID {
+			if _, err := br.store.db.Exec(DeleteNestedBoardRelation, boardID); err != nil {
+				return err
+			}
+			_, err := br.store.db.Exec(DeleteBoardByID, boardID)
+			return err
+		}
+	}
 	return storage.ErrSecurityError
 }
 

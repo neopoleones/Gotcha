@@ -27,14 +27,14 @@ type BoardRepository struct {
 func (b *BoardRepository) NewRootBoard(user *model.User, title string) (*model.Board, error) {
 
 	board := model.NewBoard(title)
-	if err := board.Validate(); err != nil {
+	if err := board.Base.Validate(); err != nil {
 		return nil, err
 	}
 
 	board.Base.CreatedAt = time.Now()
 	board.Base.ID = uuid.New()
 
-	relID, _ := b.CreateRelation(board, user, "Root board", model.PrivilegeAuthor)
+	relID, _ := b.CreateRelation(board.Base.ID, user.ID, "Root board", model.PrivilegeAuthor)
 
 	board.AddRelation(relID)
 	b.Boards[board.Base.ID] = board
@@ -64,13 +64,13 @@ func (b *BoardRepository) GetPrivilegeFromRelation(relationID uuid.UUID) (*model
 	return nil, storage.ErrNotFound
 }
 
-func (b *BoardRepository) CreateRelation(board *model.Board, user *model.User, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error) {
+func (b *BoardRepository) CreateRelation(boardID, userID uuid.UUID, desc string, privilegeType model.PrivilegeType) (uuid.UUID, error) {
 	rel := Relation{
 		ID:            uuid.New(),
-		BoardID:       board.Base.ID,
+		BoardID:       boardID,
 		Description:   desc,
 		privilegeType: privilegeType,
-		UserID:        user.ID,
+		UserID:        userID,
 	}
 
 	b.Relations = append(b.Relations, &rel)
@@ -96,4 +96,25 @@ func (b *BoardRepository) DeleteRootBoard(boardID uuid.UUID, relations []uuid.UU
 		}
 	}
 	return storage.ErrSecurityError
+}
+
+// TODO: implement me
+func (b *BoardRepository) GetRootOfNestedBoard(boardID uuid.UUID) (*model.Board, error) {
+	return nil, nil
+}
+
+func (b *BoardRepository) NewNestedBoard(rootBoardID uuid.UUID, title string, user *model.User) (*model.NestedBoard, error) {
+	return nil, nil
+}
+
+func (b *BoardRepository) GetNestedBoards(rootBoardID uuid.UUID, user *model.User) ([]*model.NestedBoard, error) {
+	return nil, nil
+}
+
+func (b *BoardRepository) DeleteNestedBoard(boardID uuid.UUID, user *model.User) error {
+	return nil
+}
+
+func (b *BoardRepository) GetBoardInfo(boardID uuid.UUID) (*model.Board, error) {
+	return nil, nil
 }

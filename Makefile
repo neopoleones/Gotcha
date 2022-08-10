@@ -1,7 +1,8 @@
 .PHONY: build
 rbuild:
 	@echo "Building ..."
-	go build Gotcha/cmd/gotcha-app
+
+	/opt/homebrew/opt/go@1.18/bin/go build Gotcha/cmd/gotcha-app
 	./gotcha-app $(ARGS)
 
 clean:

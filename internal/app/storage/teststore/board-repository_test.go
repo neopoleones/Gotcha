@@ -34,7 +34,7 @@ func TestBoardRepository_Relations(t *testing.T) {
 	_ = userRepo.SaveUser(testUser)
 
 	testBoard, _ := boardRepo.NewRootBoard(testUser, "Example root board")
-	relationID, err := boardRepo.CreateRelation(testBoard, testUser, postgres.DescriptionAllGranted, model.PrivilegeReadOnly)
+	relationID, err := boardRepo.CreateRelation(testBoard.Base.ID, testUser.ID, postgres.DescriptionAllGranted, model.PrivilegeReadOnly)
 	assert.NoError(t, err, "Failed to create relation")
 
 	bp, err := boardRepo.GetPrivilegeFromRelation(relationID)
@@ -68,7 +68,7 @@ func TestBoardRepository_DeleteRootBoard(t *testing.T) {
 	anotherUser.Username += "another"
 	anotherUser.Email += "another"
 
-	newRelation, _ := boardRepo.CreateRelation(testBoard, anotherUser, "RW access for my friend", model.PrivilegeReadWrite)
+	newRelation, _ := boardRepo.CreateRelation(testBoard.Base.ID, anotherUser.ID, "RW access for my friend", model.PrivilegeReadWrite)
 
 	assert.ErrorIs(t,
 		boardRepo.DeleteRootBoard(testBoard.Base.ID, []uuid.UUID{newRelation}, anotherUser),

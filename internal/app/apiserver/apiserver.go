@@ -21,6 +21,7 @@ var (
 	ApiGetBoards       = newApiHandle("/all", false, "GET")
 	ApiNewRootBoard    = newApiHandle("/root", false, "POST")
 	ApiDeleteRootBoard = newApiHandle("/root", false, "DELETE")
+	ApiPermitBoard     = newApiHandle("/permit", false, "POST")
 )
 
 type serverState int
@@ -84,6 +85,7 @@ func (srv *GotchaAPIServer) registerHandlers() {
 	noteSubRouter.HandleFunc(ApiGetBoards.Path, srv.getBoardsHandler()).Methods(ApiGetBoards.Methods...)
 	noteSubRouter.HandleFunc(ApiNewRootBoard.Path, srv.newRootBoardHandler()).Methods(ApiNewRootBoard.Methods...)
 	noteSubRouter.HandleFunc(ApiDeleteRootBoard.Path, srv.deleteRootBoardHandler()).Methods(ApiDeleteRootBoard.Methods...)
+	noteSubRouter.HandleFunc(ApiPermitBoard.Path, srv.permitBoard()).Methods(ApiPermitBoard.Methods...)
 }
 
 func (srv *GotchaAPIServer) error(w http.ResponseWriter, request *http.Request, code int, err error) {

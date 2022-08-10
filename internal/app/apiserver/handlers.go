@@ -9,6 +9,7 @@ import (
 
 	"Gotcha/internal/app/model"
 	"Gotcha/internal/app/storage"
+	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
 )
 
@@ -23,6 +24,7 @@ var (
 	errInvalidUser    = errors.New("specified user options are invalid")
 	errUserExists     = errors.New("user exists")
 	errUnauthorized   = errors.New("unauthorized")
+	errNotPermitted   = errors.New("not permitted")
 	errMixedIncorrect = errors.New("incorrect username or password") // hides out that user not exists
 )
 
@@ -145,7 +147,7 @@ func (srv *GotchaAPIServer) getBoardsHandler() http.HandlerFunc {
 
 func (srv *GotchaAPIServer) newRootBoardHandler() http.HandlerFunc {
 	type newBoardRequest struct {
-		Title string `json:"title"`
+		Title string `json:"title" valid:"required"`
 	}
 
 	return func(writer http.ResponseWriter, request *http.Request) {
@@ -162,6 +164,10 @@ func (srv *GotchaAPIServer) newRootBoardHandler() http.HandlerFunc {
 			srv.error(writer, request, http.StatusBadRequest, err)
 			return
 		}
+		if passedValidation, err := govalidator.ValidateStruct(req); !passedValidation {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
 
 		board, err := srv.storage.Board().NewRootBoard(&user, req.Title)
 		if err != nil {
@@ -174,8 +180,8 @@ func (srv *GotchaAPIServer) newRootBoardHandler() http.HandlerFunc {
 
 func (srv *GotchaAPIServer) deleteRootBoardHandler() http.HandlerFunc {
 	type deleteRequest struct {
-		BoardID   uuid.UUID   `json:"board_id"`
-		Relations []uuid.UUID `json:"relations"`
+		BoardID   uuid.UUID   `json:"board_id" valid:"required"`
+		Relations []uuid.UUID `json:"relations" valid:"required"`
 	}
 	return func(writer http.ResponseWriter, request *http.Request) {
 		req := deleteRequest{}
@@ -188,6 +194,11 @@ func (srv *GotchaAPIServer) deleteRootBoardHandler() http.HandlerFunc {
 		}
 
 		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
+
+		if passedValidation, err := govalidator.ValidateStruct(req); !passedValidation {
 			srv.error(writer, request, http.StatusBadRequest, err)
 			return
 		}
@@ -206,5 +217,79 @@ func (srv *GotchaAPIServer) deleteRootBoardHandler() http.HandlerFunc {
 
 		// Then user isn't an author
 		srv.respond(writer, request, http.StatusOK, nil)
+	}
+}
+
+func (srv *GotchaAPIServer) permitBoard() http.HandlerFunc {
+	type permitRequest struct {
+		Description string    `json:"description" valid:"required"`
+		BoardID     uuid.UUID `json:"board_id"    valid:"required"`
+		UserID      uuid.UUID `json:"user_id"     valid:"required"`
+		Permission  string    `json:"permission"  valid:"required"`
+	}
+
+	return func(writer http.ResponseWriter, request *http.Request) {
+		req := permitRequest{}
+		var permission model.PrivilegeType
+
+		userWrapped := request.Context().Value(ctxVerifiedUserKey)
+		user, converted := userWrapped.(model.User)
+
+		if !converted {
+			srv.error(writer, request, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
+
+		if passedValidation, err := govalidator.ValidateStruct(req); !passedValidation {
+			srv.error(writer, request, http.StatusBadRequest, err)
+			return
+		}
+
+		// Switch over permission type
+		switch req.Permission {
+		case "ro":
+			permission = model.PrivilegeReadOnly
+		case "rw":
+			permission = model.PrivilegeReadWrite
+		default:
+			srv.error(writer, request, http.StatusBadRequest, errors.New("incorrect permission"))
+			return
+		}
+
+		board, err := srv.storage.Board().GetBoardInfo(req.BoardID)
+		// Trigger on incorrect boards: nested & unreal
+		if err != nil || board.Base.ID != req.BoardID {
+			srv.error(writer, request, http.StatusBadRequest, errors.New("incorrect board"))
+			return
+		}
+
+		for _, rel := range board.U2BRelations {
+			bp, err := srv.storage.Board().GetPrivilegeFromRelation(rel)
+			if err != nil {
+				// We sure that board is correct, but relations are broken
+				srv.error(writer, request, http.StatusInternalServerError, err)
+				return
+			}
+
+			// Only owner can permit other users to work with table
+			if bp.UserID == user.ID && bp.Privilege == model.PrivilegeAuthor {
+				relation, err := srv.storage.Board().CreateRelation(bp.BoardID, req.UserID, req.Description, permission)
+				if err != nil {
+					continue
+				}
+
+				// Added the relation
+				response := fmt.Sprintf("Granted user:%v %s access to board:%v as %v",
+					req.UserID, req.Permission, req.BoardID, relation)
+				srv.respond(writer, request, http.StatusOK, response)
+				return
+			}
+		}
+		srv.error(writer, request, http.StatusForbidden, errNotPermitted)
 	}
 }
