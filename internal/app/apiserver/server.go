@@ -19,7 +19,7 @@ import (
 func Start(ctx context.Context, cfg *GotchaConfiguration, logger logging.GotchaLogger) error {
 	// Get DB ...
 	var sessionsStore sessions.Store
-	db, err := OpenDB(cfg.DatabaseConfiguration.GetConnectionString())
+	db, err := OpenDB(cfg.DatabaseConfiguration.GetConnectionString(), cfg.DatabaseConfiguration.Attempts)
 	if err != nil {
 		return err
 	}
@@ -93,13 +93,16 @@ func Start(ctx context.Context, cfg *GotchaConfiguration, logger logging.GotchaL
 	return nil
 }
 
-func OpenDB(conStr string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", conStr)
-	if err != nil {
-		return nil, err
+func OpenDB(conStr string, attempts int) (*sql.DB, error) {
+	var err error
+	var db *sql.DB
+
+	for i := 0; i < attempts; i++ {
+		db, err = sql.Open("postgres", conStr)
+		if err == nil {
+			return db, nil
+		}
+		time.Sleep(time.Second * 5)
 	}
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-	return db, nil
+	return db, err
 }

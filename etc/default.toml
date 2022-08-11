@@ -1,5 +1,5 @@
 app_name  = "GotchaBeta"
-bind_ip   = "127.0.0.1"
+bind_ip   = "0.0.0.0"
 bind_port = 8080
 store     = "redis"                    # default
 
@@ -9,14 +9,15 @@ store     = "redis"                    # default
     output_format = "terminal-colored" # terminal, json
 
 [database_configuration]
-    host = "server"
+    host = "localhost"
     port = 5432
+    attempts = 5
     username = "postgres"
     database = "gotcha"
     ssl_mode = "disable"
 
 [redis_configuration]
-    host = "server"
+    host = "localhost"
     port = 6379
     session_lifetime = 2592000         # 30 days
     idle_connections = 10

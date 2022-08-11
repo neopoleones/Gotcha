@@ -21,6 +21,7 @@ type DatabaseConfiguration struct {
 	DBHost           string `toml:"host" env:"DB_HOST" env-default:"127.0.0.1"`
 	DBPort           int    `toml:"port" env:"DB_PORT" env-default:"5432"`
 	SSLMode          string `toml:"ssl_mode" env:"SSL_MODE" env-default:"disable"`
+	Attempts         int    `toml:"attempts" env:"DB_ATTEMPTS" env-default:"5"`
 	DBUsername       string `toml:"username" env:"DB_USERNAME" env-default:"postgres"`
 	DBPassword       string `toml:"password" env:"DB_PASSWORD"`
 	SelectedDatabase string `toml:"database" env:"DATABASE" env-default:"postgres"`
