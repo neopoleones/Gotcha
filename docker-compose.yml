@@ -10,7 +10,7 @@ services:
     networks:
       - postgres
     ports:
-      - "8080:8080"
+      - "80:8080"
 
   postgres:
     image: postgres:10.5
@@ -21,7 +21,7 @@ services:
         max-size: 10m
         max-file: "3"
     ports:
-      - '5432:5432'
+      - '127.0.0.1:5432:5432'
     networks:
       - postgres
     volumes:
@@ -30,12 +30,22 @@ services:
     image: redis:6.2-alpine
     restart: always
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
     networks:
       - postgres
     command: redis-server --save 20 1 --loglevel warning
     volumes:
       - cache:/redis_data
+
+  migrations:
+    image: migrate/migrate
+    env_file: .env
+    command: -database postgres://postgres:$DB_PASSWORD@postgres:5432/gotcha?sslmode=disable -path /migrations up
+    volumes:
+      - ./migrations:/migrations
+    working_dir: /migrations
+    networks:
+      - postgres
 
 volumes:
   cache:
