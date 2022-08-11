@@ -9,6 +9,7 @@ type UserRepository interface {
 	FindUserBySobriquet(sobriquet string) (*model.User, error)
 	FindUserByID(userID uuid.UUID) (*model.User, error)
 	SaveUser(user *model.User) error
+	GetAllUsers(user *model.User) ([]*model.User, error)
 }
 
 type BoardRepository interface {

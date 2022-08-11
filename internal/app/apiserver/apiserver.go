@@ -17,6 +17,7 @@ var (
 	ApiHeartbeat = newApiHandle("/heartbeat", true, "GET")
 	ApiSignup    = newApiHandle("/authority/signup", true, "POST")
 	ApiAuthorize = newApiHandle("/authority/signin", true, "POST")
+	ApiListUsers = newApiHandle("/authority/all", true, "GET")
 
 	ApiGetBoards       = newApiHandle("/all", false, "GET")
 	ApiNewRootBoard    = newApiHandle("/root", false, "POST")
@@ -78,6 +79,9 @@ func (srv *GotchaAPIServer) registerHandlers() {
 	srv.Router.HandleFunc(ApiHeartbeat.Path, srv.heartbeatAPIHandler()).Methods(ApiHeartbeat.Methods...)
 	srv.Router.HandleFunc(ApiSignup.Path, srv.signupHandler()).Methods(ApiSignup.Methods...)
 	srv.Router.HandleFunc(ApiAuthorize.Path, srv.signinHandler()).Methods(ApiAuthorize.Methods...)
+
+	listUsersHandler := srv.authorizationMiddleware(http.Handler(srv.listUsersHandler()))
+	srv.Router.Handle(ApiListUsers.Path, listUsersHandler).Methods(ApiListUsers.Methods...)
 
 	// Authorization middleware enabled`
 	noteSubRouter := srv.Router.PathPrefix(ApiBoardsPath).Subrouter()

@@ -1,7 +1,6 @@
 package logrus_logger
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -23,7 +22,7 @@ func enrichCallerInformation(frame *runtime.Frame) (function string, file string
 	dir, fileName := path.Split(frame.File)
 	trimmedDir := path.Base(dir)
 
-	funcName := fmt.Sprintf("[%s:%d]", path.Base(frame.Function), frame.Line)
+	funcName := "" // fmt.Sprintf("[%s:%d]", path.Base(frame.Function), frame.Line)
 	return funcName, path.Join(trimmedDir, fileName)
 }
 

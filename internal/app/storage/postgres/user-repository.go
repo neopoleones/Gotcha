@@ -20,6 +20,9 @@ const (
 	findUserByIDQuery = `
 		SELECT id, username, email, hash, created_at FROM "Users" where id = $1;
 	`
+	getAllUsers = `
+		SELECT id, username, created_at FROM "Users";
+	`
 )
 
 // UserRepository interface implementation (depends on SQL database)
@@ -68,4 +71,27 @@ func (repo *UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) 
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (repo *UserRepository) GetAllUsers(currUser *model.User) ([]*model.User, error) {
+	users := make([]*model.User, 0)
+	usrRows, err := repo.store.db.Query(getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+
+	for usrRows.Next() {
+		user := model.User{}
+		err := usrRows.Scan(&user.ID, &user.Username, &user.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+
+		// Don't include current user
+		if user.ID == currUser.ID {
+			continue
+		}
+		users = append(users, &user)
+	}
+	return users, nil
 }

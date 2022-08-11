@@ -50,3 +50,31 @@ func TestUserRepository_FindUserByID(t *testing.T) {
 	_, err = repository.FindUserByID(uuid.Nil)
 	assert.Error(t, err, "Repository returned user for nil UUID")
 }
+
+func TestUserRepository_GetAllUsers(t *testing.T) {
+	repository := New().User()
+
+	viewer := model.TestUser(t)
+	viewer.Email += "v"
+	viewer.Username += "v"
+	_ = repository.SaveUser(viewer)
+
+	testUser := model.TestUser(t)
+	_ = repository.SaveUser(testUser)
+
+	// First case
+	allUsers, err := repository.GetAllUsers(viewer)
+	assert.NoError(t, err, "Got error while collecting users")
+	assert.Equal(t, len(allUsers), 1)
+	assert.Equal(t, allUsers[0].ID, testUser.ID)
+
+	// Second case
+	secondUser := model.TestUser(t)
+	secondUser.Username += "s"
+	secondUser.Email += "s"
+	_ = repository.SaveUser(secondUser)
+
+	allUsers, err = repository.GetAllUsers(viewer)
+	assert.NoError(t, err, "Got error while collecting users (second testcase)")
+	assert.Equal(t, len(allUsers), 2)
+}

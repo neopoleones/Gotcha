@@ -14,7 +14,7 @@ type UserRepository struct {
 }
 
 // FindUserBySobriquet is very slow, but still usable for tests
-func (u UserRepository) FindUserBySobriquet(sobriquet string) (*model.User, error) {
+func (u *UserRepository) FindUserBySobriquet(sobriquet string) (*model.User, error) {
 
 	for _, user := range u.users {
 		if sobriquet == user.Email || sobriquet == user.Username {
@@ -24,7 +24,7 @@ func (u UserRepository) FindUserBySobriquet(sobriquet string) (*model.User, erro
 	return nil, storage.ErrNotFound
 }
 
-func (u UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) {
+func (u *UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) {
 	user, found := u.users[userID]
 
 	if !found {
@@ -33,7 +33,7 @@ func (u UserRepository) FindUserByID(userID uuid.UUID) (*model.User, error) {
 	return user, nil
 }
 
-func (u UserRepository) SaveUser(user *model.User) error {
+func (u *UserRepository) SaveUser(user *model.User) error {
 	// Some sanity checks before saving
 	if err := user.Validate(); err != nil {
 		return err
@@ -52,4 +52,14 @@ func (u UserRepository) SaveUser(user *model.User) error {
 	user.CreatedAt = time.Now()
 	u.users[user.ID] = user
 	return nil
+}
+
+func (u *UserRepository) GetAllUsers(user *model.User) ([]*model.User, error) {
+	users := make([]*model.User, 0)
+	for _, u := range u.users {
+		if u.ID != user.ID {
+			users = append(users, u)
+		}
+	}
+	return users, nil
 }

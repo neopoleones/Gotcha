@@ -293,3 +293,22 @@ func (srv *GotchaAPIServer) permitBoard() http.HandlerFunc {
 		srv.error(writer, request, http.StatusForbidden, errNotPermitted)
 	}
 }
+
+func (srv *GotchaAPIServer) listUsersHandler() http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		userWrapped := request.Context().Value(ctxVerifiedUserKey)
+		user, converted := userWrapped.(model.User) // Just check if user is specified
+
+		if !converted {
+			srv.error(writer, request, http.StatusUnauthorized, errUnauthorized)
+			return
+		}
+
+		users, err := srv.storage.User().GetAllUsers(&user)
+		if err != nil {
+			srv.error(writer, request, http.StatusInternalServerError, err)
+			return
+		}
+		srv.respond(writer, request, http.StatusOK, users)
+	}
+}
